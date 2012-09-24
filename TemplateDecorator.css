@@ -1,0 +1,70 @@
+/* preset color-picker styles: */
+
+.preset-picker span {
+    background:black;
+    padding:1px;
+    float:left;
+    margin-right:1px;
+    cursor:pointer;
+}
+
+.preset-picker span, .preset-picker span i {
+    display:block;
+    width:16px;
+    height:16px;
+}
+
+.preset-picker span i {
+    color:white;
+    font-family:Liberation Sans, Arial, sans-serif;
+    font-size:13px;
+    font-style:normal;
+    line-height: 16px;
+    text-indent:1px;
+    text-decoration:none;
+}
+
+/* icon list: */
+
+#TemplateDecorator-icons {
+    width:600px;
+    overflow: hidden;
+}
+
+#TemplateDecorator-icons img {
+    cursor: pointer;
+    float: left;
+    margin:0px 24px 24px 0px;
+}
+
+/* template badge: */
+
+.TemplateDecorator-badge {
+    display:inline-block;
+    font-family:"Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size:11px;
+    font-weight:bold;
+    color:white;
+    text-shadow:1px 1px 0 rgba(0, 0, 0, 0.5);
+    text-decoration:none;
+    padding:1px 9px 1px;
+    margin:0px 0px 0px 0.5em;
+    border:solid 1px white;
+    border-radius:9px;
+    white-space:nowrap;
+    vertical-align:1px;
+}
+
+/* custom icon tag: */
+
+img.TemplateDecorator-icon {
+    display:inline-block;
+    vertical-align:-2px;
+    margin-right:0.2em;
+}
+
+/* dim labels/icons of hidden pages: */
+
+.PageListStatusHidden .TemplateDecorator-badge, .PageListStatusHidden .TemplateDecorator-icon {
+    opacity:0.5;
+}
