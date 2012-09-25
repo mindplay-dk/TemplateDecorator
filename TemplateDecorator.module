@@ -3,7 +3,7 @@
 /**
  * ProcessWire Template Decorator
  *
- * @version 1.0.1
+ * @version 1.0.2
  * @author Rasmus Schultz
  * @website http://blog.mindplay.dk/
  * @license GPL v3
@@ -18,43 +18,63 @@
  */
 class TemplateDecorator extends WireData implements Module, ConfigurableModule
 {
+  /**
+   * Initialize module settings.
+   */
   public function __construct()
   {
     $this->default_icon = '';
+    $this->show_template = false;
   }
 
   /**
-   * getModuleInfo is a module required by all modules to tell ProcessWire about them
-   *
-   * @return array
+   * @return array module information
    */
   public static function getModuleInfo()
   {
     return array(
       'title' => 'Template Decorator',
-      'version' => 101,
+      'version' => 102,
       'summary' => 'Optionally add colorful badges and icons to Templates and Pages - this can improve the sitemap view, when you have many different Templates installed, and may help with comprehension in general.',
       'permission' => 'template-admin', 
-      'href' => '',
+      'href' => 'https://github.com/mindplay-dk/TemplateDecorator',
       'singular' => true,
       'autoload' => true,
     );
   }
 
+  /**
+   * Add CSS file for template decorations.
+   */
   public function init()
   {
-    // hooks into template form:
+    $this->config->styles->add($this->config->urls->TemplateDecorator . "TemplateDecorator.css");
+  }
+
+  /**
+   * Configure hooks for this module
+   */
+  public function ready()
+  {
+    if ($this->page->template != 'admin') return;
+
+    // hooks into template form - displays and saves the "decorations" tab settings:
     $this->addHookAfter('ProcessTemplate::buildEditForm', $this, 'hookAddForm');
     $this->addHookBefore('ProcessTemplate::executeSave', $this, 'hookSaveForm');
 
-    // hooks into the page-list:
-    $this->addHookBefore('ProcessPageList::execute', $this, 'hookPageList');
+    // hooks into the page-list - display the Template's Name and Directions:
     $this->addHookAfter('ProcessPageListRender::getPageLabel', $this, 'hookPageLabel');
 
-    // hook into page-editor:
+    // hook into page-editor - adds badges and icons:
     $this->addHookAfter('ProcessPageEdit::buildForm', $this, 'hookPageEditForm');
   }
-  
+
+  /**
+   * Builds the Module configuration form.
+   *
+   * @param array $data module configuration values
+   * @return InputfieldsWrapper|InputfieldWrapper
+   */
   static public function getModuleConfigInputfields(array $data)
   {
     /**
@@ -89,6 +109,12 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     return $fields;
   }
 
+  /**
+   * Decorate the Page editor form's "content" tab with Template-name and Directions.
+   *
+   * @param HookEvent $event
+   * @see ProcessPageEdit::___buildForm()
+   */
   public function hookPageEditForm(HookEvent $event)
   {
     /**
@@ -103,7 +129,7 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
     $module = $event->object;
 
-    // invasive maneauvers to get the Page being edited:
+    // invasive maneuvers to get the Page being edited:
     $class = new ReflectionClass(get_class($module));
     $prop = $class->getProperty('page');
     $prop->setAccessible(true);
@@ -123,6 +149,12 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     }
   }
 
+  /**
+   * Adds the new "decorations" tab to the Template editor.
+   *
+   * @param HookEvent $event
+   * @see ProcessTemplate::___buildEditForm()
+   */
   public function hookAddForm(HookEvent $event)
   {
     /**
@@ -170,8 +202,8 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     $directions->attr('rows', 10);
     $directions->label = $this->_('Directions');
 
-    $icons = $this->getIcons();
-    $icons_url = $this->getIconUrl();
+    $icons = $this->_getIcons();
+    $icons_url = $this->_getIconUrl();
     $icons_license = $this->config->paths->TemplateDecorator.'icons/LICENSE.txt';
 
     $icon = $this->modules->get('InputfieldSelect');
@@ -201,20 +233,80 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     $decorations->add($directions);
     $decorations->add($icon);
 
-    $decorations->addHookAfter('render', $this, 'hookAfterRender');
-
     $form->add($decorations);
-  }
 
-  private function addCss()
-  {
-    $this->config->styles->add($this->config->urls->TemplateDecorator . "TemplateDecorator.css");
+    $this->config->scripts->add($this->config->urls->TemplateDecorator . "TemplateDecorator.js");
   }
 
   /**
+   * Saves Template settings on the "decorations" tab.
+   *
+   * @param $event
+   * @see ProcessTemplate::___executeSave()
+   */
+  public function hookSaveForm($event)
+  {
+    $label = isset($this->input->post->badge_label) ? $this->input->post->badge_label : null;
+    $color = isset($this->input->post->badge_color) ? $this->input->post->badge_color : null;
+    $icon = isset($this->input->post->page_icon) ? $this->input->post->page_icon : null;
+    $directions = isset($this->input->post->directions) ? $this->input->post->directions : null;
+
+    $template = $this->templates->get($this->input->post->id);
+
+    if ($template->directions != $directions || $template->badge_label != $label || $template->badge_color != $color || $template->page_icon != $icon) {
+      $this->message($this->_("Changed Template Decorations"));
+    }
+
+    $template->badge_label = $label;
+    $template->badge_color = $color;
+    $template->page_icon = $icon;
+    $template->directions = $directions;
+  }
+
+  /**
+   * Decorate the Page List with badges and icons.
+   *
+   * @param HookEvent $event
+   * @see ProcessPageListRender::___getPageLabel()
+   */
+  public function hookPageLabel(HookEvent $event)
+  {
+    /**
+     * @var Page $page
+     * @var Template $template
+     */
+
+    $page = $event->argumentsByName('page');
+
+    $template = $page->template;
+
+    if (isset($template->page_icon) || !empty($this->default_icon)) {
+      $url = $this->_getIconUrl() . (empty($template->page_icon) ? $this->default_icon : $template->page_icon);
+
+      $event->return = '<img class="TemplateDecorator-icon" src="'.$url.'" />'.$event->return;
+    }
+
+    if (isset($template->badge_color)) {
+      $color = $template->badge_color;
+
+      if (isset($template->badge_label)) {
+        $label = $template->badge_label;
+      } else if (isset($template->label)) {
+        $label = $template->label;
+      } else {
+        $label = $template->name;
+      }
+
+      $event->return .= '<span class="TemplateDecorator-badge" style="background:'.$color.'">'.$label.'</span>';
+    }
+  }
+
+  /**
+   * Builds a list of available icon files.
+   *
    * @return string[] list of icons, where $filename => $display_name
    */
-  private function getIcons()
+  private function _getIcons()
   {
     static $icons;
 
@@ -233,72 +325,8 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
   /**
    * @return string base URL for page icons
    */
-  private function getIconUrl()
+  private function _getIconUrl()
   {
     return $this->config->urls->TemplateDecorator.'icons/';
-  }
-
-  public function hookAfterRender(HookEvent $event)
-  {
-    $this->config->scripts->add($this->config->urls->TemplateDecorator . "TemplateDecorator.js");
-    $this->addCss();
-
-    $event->return .= '<script> $(document).ready(function() { TemplateDecorator.init(); }); </script>';
-  }
-
-  public function hookSaveForm($event)
-  {
-    $label = isset($this->input->post->badge_label) ? $this->input->post->badge_label : null;
-    $color = isset($this->input->post->badge_color) ? $this->input->post->badge_color : null;
-    $icon = isset($this->input->post->page_icon) ? $this->input->post->page_icon : null;
-    $directions = isset($this->input->post->directions) ? $this->input->post->directions : null;
-
-    $template = $this->templates->get($this->input->post->id);
-
-    if ($template->directions != $directions || $template->badge_label != $label || $template->badge_color != $color || $template->page_icon != $icon) {
-      $this->message($this->_("Changed Template Decoration"));
-    }
-
-    $template->badge_label = $label;
-    $template->badge_color = $color;
-    $template->page_icon = $icon;
-    $template->directions = $directions;
-  }
-
-  public function hookPageList(HookEvent $event)
-  {
-    $this->addCss();
-  }
-
-  public function hookPageLabel(HookEvent $event)
-  {
-    /**
-     * @var Page $page
-     * @var Template $template
-     */
-
-    $page = $event->argumentsByName('page');
-
-    $template = $page->template;
-
-    if (isset($template->page_icon) || !empty($this->default_icon)) {
-      $url = $this->getIconUrl() . (empty($template->page_icon) ? $this->default_icon : $template->page_icon);
-
-      $event->return = '<img class="TemplateDecorator-icon" src="'.$url.'" />'.$event->return;
-    }
-
-    if (isset($template->badge_color)) {
-      $color = $template->badge_color;
-
-      if (isset($template->badge_label)) {
-        $label = $template->badge_label;
-      } else if (isset($template->label)) {
-        $label = $template->label;
-      } else {
-        $label = $template->name;
-      }
-
-      $event->return .= '<span class="TemplateDecorator-badge" style="background:'.$color.'">'.$label.'</span>';
-    }
   }
 }

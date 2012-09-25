@@ -46,7 +46,7 @@
 })(jQuery);
 
 TemplateDecorator = {
-    init: function() {
+    init: function($) {
         $('#badge_color').presetpicker();
 
         $('#TemplateDecorator-icons').on('click', 'img', function() {
@@ -54,3 +54,5 @@ TemplateDecorator = {
         });
     }
 };
+
+jQuery(function($) { TemplateDecorator.init($); });
