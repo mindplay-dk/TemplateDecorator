@@ -65,6 +65,12 @@ img.TemplateDecorator-icon {
 
 /* dim labels/icons of hidden pages: */
 
-.PageListStatusHidden .TemplateDecorator-badge, .PageListStatusHidden .TemplateDecorator-icon {
+.PageListStatusHidden .TemplateDecorator-badge,
+.PageListStatusHidden .TemplateDecorator-icon {
     opacity:0.5;
+}
+.PageListStatusHidden .TemplateDecorator-icon {
+    filter: saturate(0%);
+    -moz-filter: saturate(0%);
+    -webkit-filter: saturate(0%);
 }
