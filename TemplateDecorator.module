@@ -3,7 +3,7 @@
 /**
  * ProcessWire Template Decorator
  *
- * @version 1.0.2
+ * @version 1.0.3
  * @author Rasmus Schultz
  * @website http://blog.mindplay.dk/
  * @license GPL v3
@@ -25,7 +25,25 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
   {
     $this->default_icon = '';
     $this->show_template = false;
+
+    foreach (self::$special_pages as $key => $label) {
+      $this->{"icon_{$key}"} = null;
+    }
   }
+
+  /**
+   * @var array map where special page ID => icon URL
+   */
+  private $page_icons = array();
+
+  /**
+   * @var array map where configuration key-name => icon description
+   */
+  protected static $special_pages = array(
+    'adminRootPageID' => 'Administration Root Page Icon',
+    'trashPageID' => 'Trash Page Icon',
+    'http404PageID' => '404 Error Page Icon',
+  );
 
   /**
    * @return array module information
@@ -34,7 +52,7 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
   {
     return array(
       'title' => 'Template Decorator',
-      'version' => 102,
+      'version' => 103,
       'summary' => 'Optionally add colorful badges and icons to Templates and Pages - this can improve the sitemap view, when you have many different Templates installed, and may help with comprehension in general.',
       'permission' => 'template-admin', 
       'href' => 'https://github.com/mindplay-dk/TemplateDecorator',
@@ -49,6 +67,10 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
   public function init()
   {
     $this->config->styles->add($this->config->urls->TemplateDecorator . "TemplateDecorator.css");
+
+    foreach (self::$special_pages as $key => $label) {
+      $this->page_icons[$this->config->{$key}] = $this->{"icon_{$key}"};
+    }
   }
 
   /**
@@ -87,12 +109,25 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
     $fields = new InputfieldWrapper();
 
-    $default_icon = $modules->get('InputfieldText');
+    $default_icon = $modules->get('InputfieldSelect');
+    $default_icon->label = 'Default Icon';
+    $default_icon->description = 'Select a default icon (for templates/pages with no defined icon)';
+    $default_icon->notes = 'Try "Blank" for no icon, or "Page" for a simple, empty page icon.';
+    $default_icon->addOption('');
+    $default_icon->addOptions(self::_getIcons());
     $default_icon->attr('name', 'default_icon');
     $default_icon->attr('value', isset($data['default_icon']) ? $data['default_icon'] : '');
-    $default_icon->label = 'Default Icon';
-    $default_icon->description = 'Enter the filename of the default icon (for templates/pages with no defined icon)';
-    $default_icon->notes = 'Try "blank.png" for no icon, or "page.png" for a simple, empty page icon.';
+    $fields->append($default_icon);
+
+    foreach (self::$special_pages as $key => $label) {
+      $special_icon = $modules->get('InputfieldSelect');
+      $special_icon->label = $label;
+      $special_icon->addOption('');
+      $special_icon->addOptions(self::_getIcons());
+      $special_icon->attr('name', "icon_{$key}");
+      $special_icon->attr('value', isset($data["icon_{$key}"]) ? $data["icon_{$key}"] : '');
+      $fields->append($special_icon);
+    }
 
     $show_template = $modules->get('InputfieldCheckbox');
     $show_template->attr('name', 'show_template');
@@ -102,8 +137,6 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     }
     $show_template->label = 'Show Template Name';
     $show_template->description = 'Displays the name of the Template in the page title when editing a Page.';
-
-    $fields->append($default_icon);
     $fields->append($show_template);
 
     return $fields;
@@ -202,7 +235,7 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     $directions->attr('rows', 10);
     $directions->label = $this->_('Directions');
 
-    $icons = $this->_getIcons();
+    $icons = self::_getIcons();
     $icons_url = $this->_getIconUrl();
     $icons_license = $this->config->paths->TemplateDecorator.'icons/LICENSE.txt';
 
@@ -264,6 +297,27 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
   }
 
   /**
+   * @param Template $template the Template for which to select an icon
+   * @return string|null icon URL, or null if no applicable icon exists
+   */
+  public function getPageIcon(Page $page)
+  {
+    /**
+     * @var $template Template
+     */
+
+    $template = $page->template;
+
+    if (isset($template->page_icon)) {
+      return $this->_getIconUrl() . $template->page_icon;
+    } else if (!empty($this->page_icons[$page->id])) {
+      return $this->_getIconUrl() . $this->page_icons[$page->id];
+    } else if (!empty($this->default_icon)) {
+      return $this->_getIconUrl() . $this->default_icon;
+    }
+  }
+
+  /**
    * Decorate the Page List with badges and icons.
    *
    * @param HookEvent $event
@@ -278,13 +332,13 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
     $page = $event->argumentsByName('page');
 
-    $template = $page->template;
+    $icon = $this->getPageIcon($page);
 
-    if (isset($template->page_icon) || !empty($this->default_icon)) {
-      $url = $this->_getIconUrl() . (empty($template->page_icon) ? $this->default_icon : $template->page_icon);
-
-      $event->return = '<img class="TemplateDecorator-icon" src="'.$url.'" />'.$event->return;
+    if (!empty($icon)) {
+      $event->return = '<img class="TemplateDecorator-icon" src="'.$icon.'" />'.$event->return;
     }
+
+    $template = $page->template;
 
     if (isset($template->badge_color)) {
       $color = $template->badge_color;
@@ -306,13 +360,13 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
    *
    * @return string[] list of icons, where $filename => $display_name
    */
-  private function _getIcons()
+  private static function _getIcons()
   {
     static $icons;
 
     if (!isset($icons)) {
       $icons = array();
-      foreach (glob($this->config->paths->TemplateDecorator.'icons/*.png') as $icon) {
+      foreach (glob(wire('config')->paths->TemplateDecorator.'icons/*.png') as $icon) {
         $filename = basename($icon);
         $name = ucwords(strtr(basename($filename,'.png'), '-_', '  '));
         $icons[$filename] = $name;
