@@ -81,3 +81,8 @@ img.TemplateDecorator-icon {
 .PageListItemOpen .TemplateDecorator-icon {
     opacity:1.0;
 }
+.PageListItemOpen .TemplateDecorator-icon {
+    filter: saturate(100%);
+    -moz-filter: saturate(100%);
+    -webkit-filter: saturate(100%);
+}
