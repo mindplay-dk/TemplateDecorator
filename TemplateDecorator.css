@@ -74,3 +74,10 @@ img.TemplateDecorator-icon {
     -moz-filter: saturate(0%);
     -webkit-filter: saturate(0%);
 }
+
+/* but do not dim labels/icons when selected: */
+
+.PageListItemOpen .TemplateDecorator-badge,
+.PageListItemOpen .TemplateDecorator-icon {
+    opacity:1.0;
+}
