@@ -7,7 +7,6 @@
  * @author Rasmus Schultz
  * @website http://blog.mindplay.dk/
  * @license GPL v3
- *
  * This module allows you to add a colorful badge and/or select an icon to
  * display on the page-list for a given template.
  */
@@ -18,369 +17,391 @@
  */
 class TemplateDecorator extends WireData implements Module, ConfigurableModule
 {
-  /**
-   * Initialize module settings.
-   */
-  public function __construct()
-  {
-    $this->default_icon = '';
-    $this->show_template = false;
+    /**
+     * Initialize module settings.
+     */
+    public function __construct()
+    {
+        $this->default_icon = '';
+        $this->show_template = false;
 
-    foreach (self::$special_pages as $key => $label) {
-      $this->{"icon_{$key}"} = null;
+        foreach (self::$special_pages as $key => $label) {
+            $this->{"icon_{$key}"} = null;
+        }
     }
-  }
 
-  /**
-   * @var array map where special page ID => icon URL
-   */
-  private $page_icons = array();
+    /**
+     * @var array map where special page ID => icon URL
+     */
+    private $page_icons = array();
 
-  /**
-   * @var array map where configuration key-name => icon description
-   */
-  protected static $special_pages = array(
-    'adminRootPageID' => 'Administration Root Page Icon',
-    'trashPageID' => 'Trash Page Icon',
-    'http404PageID' => '404 Error Page Icon',
-  );
-
-  /**
-   * @return array module information
-   */
-  public static function getModuleInfo()
-  {
-    return array(
-      'title' => 'Template Decorator',
-      'version' => 103,
-      'summary' => 'Optionally add colorful badges and icons to Templates and Pages - this can improve the sitemap view, when you have many different Templates installed, and may help with comprehension in general.',
-      'permission' => 'template-admin', 
-      'href' => 'https://github.com/mindplay-dk/TemplateDecorator',
-      'singular' => true,
-      'autoload' => true,
+    /**
+     * @var array map where configuration key-name => icon description
+     */
+    protected static $special_pages = array(
+        'adminRootPageID' => 'Administration Root Page Icon',
+        'trashPageID'     => 'Trash Page Icon',
+        'http404PageID'   => '404 Error Page Icon',
     );
-  }
 
-  /**
-   * Add CSS file for template decorations.
-   */
-  public function init()
-  {
-    $this->config->styles->add($this->config->urls->TemplateDecorator . "TemplateDecorator.css");
-
-    foreach (self::$special_pages as $key => $label) {
-      $this->page_icons[$this->config->{$key}] = $this->{"icon_{$key}"};
-    }
-  }
-
-  /**
-   * Configure hooks for this module
-   */
-  public function ready()
-  {
-    if ($this->page->template != 'admin') return;
-
-    // hooks into template form - displays and saves the "decorations" tab settings:
-    $this->addHookAfter('ProcessTemplate::buildEditForm', $this, 'hookAddForm');
-    $this->addHookBefore('ProcessTemplate::executeSave', $this, 'hookSaveForm');
-
-    // hooks into the page-list - display the Template's Name and Directions:
-    $this->addHookAfter('ProcessPageListRender::getPageLabel', $this, 'hookPageLabel');
-
-    // hook into page-editor - adds badges and icons:
-    $this->addHookAfter('ProcessPageEdit::buildForm', $this, 'hookPageEditForm');
-  }
-
-  /**
-   * Builds the Module configuration form.
-   *
-   * @param array $data module configuration values
-   * @return InputfieldsWrapper|InputfieldWrapper
-   */
-  static public function getModuleConfigInputfields(array $data)
-  {
     /**
-     * @var $fields InputfieldWrapper
-     * @var $default_icon InputfieldText
-     * @var $show_template InputfieldCheckbox
+     * @return array module information
      */
-
-    $modules = Wire::getFuel('modules');
-
-    $fields = new InputfieldWrapper();
-
-    $default_icon = $modules->get('InputfieldSelect');
-    $default_icon->label = 'Default Icon';
-    $default_icon->description = 'Select a default icon (for templates/pages with no defined icon)';
-    $default_icon->notes = 'Try "Blank" for no icon, or "Page" for a simple, empty page icon.';
-    $default_icon->addOption('');
-    $default_icon->addOptions(self::_getIcons());
-    $default_icon->attr('name', 'default_icon');
-    $default_icon->attr('value', isset($data['default_icon']) ? $data['default_icon'] : '');
-    $fields->append($default_icon);
-
-    foreach (self::$special_pages as $key => $label) {
-      $special_icon = $modules->get('InputfieldSelect');
-      $special_icon->label = $label;
-      $special_icon->addOption('');
-      $special_icon->addOptions(self::_getIcons());
-      $special_icon->attr('name', "icon_{$key}");
-      $special_icon->attr('value', isset($data["icon_{$key}"]) ? $data["icon_{$key}"] : '');
-      $fields->append($special_icon);
+    public static function getModuleInfo()
+    {
+        return array(
+            'title'      => 'Template Decorator',
+            'version'    => 103,
+            'summary'    => 'Optionally add colorful badges and icons to Templates and Pages - this can improve the sitemap view, when you have many different Templates installed, and may help with comprehension in general.',
+            'permission' => 'template-admin',
+            'href'       => 'https://github.com/mindplay-dk/TemplateDecorator',
+            'singular'   => true,
+            'autoload'   => true,
+        );
     }
 
-    $show_template = $modules->get('InputfieldCheckbox');
-    $show_template->attr('name', 'show_template');
-    $show_template->attr('value', '1');
-    if (@$data['show_template'] == '1') {
-      $show_template->attr('checked', 'checked');
-    }
-    $show_template->label = 'Show Template Name';
-    $show_template->description = 'Displays the name of the Template in the page title when editing a Page.';
-    $fields->append($show_template);
-
-    return $fields;
-  }
-
-  /**
-   * Decorate the Page editor form's "content" tab with Template-name and Directions.
-   *
-   * @param HookEvent $event
-   * @see ProcessPageEdit::___buildForm()
-   */
-  public function hookPageEditForm(HookEvent $event)
-  {
     /**
-     * @var $page Page
-     * @var $template Template
-     * @var $form InputfieldForm
-     * @var $content Inputfield
-     * @var $directions InputfieldMarkup
+     * Add CSS file for template decorations.
      */
+    public function init()
+    {
+        $this->config->styles->add($this->config->urls->TemplateDecorator . "TemplateDecorator.css");
 
-    $modules = Wire::getFuel('modules');
-
-    $module = $event->object;
-
-    // invasive maneuvers to get the Page being edited:
-    $class = new ReflectionClass(get_class($module));
-    $prop = $class->getProperty('page');
-    $prop->setAccessible(true);
-    $page = $prop->getValue($module);
-
-    $template = $page->template;
-
-    $this->setFuel('processHeadline', $template->get('label|name') . ': ' . $page->get('title|name'));
-
-    if (isset($template->directions) && !empty($template->directions)) {
-      $directions = wire('modules')->get('InputfieldMarkup');
-      $directions->markupText = $template->directions;
-
-      $form = $event->return;
-      $content = $form->children->first();
-      $content->prepend($directions);
+        foreach (self::$special_pages as $key => $label) {
+            $this->page_icons[$this->config->{$key}] = $this->{"icon_{$key}"};
+        }
     }
-  }
 
-  /**
-   * Adds the new "decorations" tab to the Template editor.
-   *
-   * @param HookEvent $event
-   * @see ProcessTemplate::___buildEditForm()
-   */
-  public function hookAddForm(HookEvent $event)
-  {
     /**
-     * @var $form InputfieldForm
-     * @var $badge InputfieldMarkup
-     * @var $label InputfieldText
-     * @var $color InputfieldText
-     * @var $icons string[]
-     * @var $icon InputfieldSelect
-     * @var $directions InputfieldTextarea
+     * Configure hooks for this module
      */
+    public function ready()
+    {
+        if ($this->page->template != 'admin') {
+            return;
+        }
 
-    $form = $event->return;
+        // hooks into template form - displays and saves the "decorations" tab settings:
+        $this->addHookAfter('ProcessTemplate::buildEditForm', $this, 'hookAddForm');
+        $this->addHookBefore('ProcessTemplate::executeSave', $this, 'hookSaveForm');
 
-    $template = $this->templates->get($event->arguments('template'));
+        // hooks into the page-list - display the Template's Name and Directions:
+        $this->addHookAfter('ProcessPageListRender::getPageLabel', $this, 'hookPageLabel');
 
-    $decorations = new InputfieldWrapper();
-
-    $decorations->attr('title', $this->_x('Decorations', 'tab'));
-    $decorations->head = $this->_('Decorate Templates and Pages');
-    $decorations->attr('class', 'WireTab');
-
-    /*
-    $badge = $this->modules->get('InputfieldMarkup');
-    $badge->markupText = '<h2>' . htmlspecialchars($this->_('Badge')) . '</h2>'
-      . $this->_('Display a colorful badge in the Page List');
-    */
-
-    $label = $this->modules->get('InputfieldText');
-    $label->label = $this->_('Badge Label');
-    $label->attr('id+name', 'badge_label');
-    $label->attr('value', $template->badge_label);
-    $label->columnWidth = 50;
-
-    $color = $this->modules->get('InputfieldText');
-    $color->label = $this->_('Badge Color');
-    $color->attr('id+name', 'badge_color');
-    $color->attr('value', $template->badge_color);
-    $color->columnWidth = 50;
-
-    $directions = wire('modules')->get('InputfieldTinyMCE');
-    $directions->description = 'Enter directions for the person editing the Page.';
-    $directions->attr('id+name', 'directions');
-    $directions->attr('value', $template->directions);
-    $directions->attr('rows', 10);
-    $directions->label = $this->_('Directions');
-
-    $icons = self::_getIcons();
-    $icons_url = $this->_getIconUrl();
-    $icons_license = $this->config->paths->TemplateDecorator.'icons/LICENSE.txt';
-
-    $icon = $this->modules->get('InputfieldSelect');
-    $icon->label = $this->_('Page Icon');
-    $icon->addOption('');
-    $icon->attr('id+name', 'page_icon');
-    $icon->attr('value', $template->page_icon);
-    $icon->addOptions($icons);
-
-    $icon->addHookAfter('render', null, function(HookEvent $event) use($icons, $icons_url, $icons_license) {
-      $event->return .= '<div id="TemplateDecorator-icons">';
-
-      foreach ($icons as $icon => $name) {
-        $event->return .= '<img title="'.htmlspecialchars($name).'" src="'.$icons_url.$icon.'" data-icon="'.$icon.'" />';
-      }
-
-      $event->return .= '</div>';
-
-      if (file_exists($icons_license)) {
-        $event->return .= file_get_contents($icons_license);
-      }
-    });
-
-    #$t->add($badge);
-    $decorations->add($label);
-    $decorations->add($color);
-    $decorations->add($directions);
-    $decorations->add($icon);
-
-    $form->add($decorations);
-
-    $this->config->scripts->add($this->config->urls->TemplateDecorator . "TemplateDecorator.js");
-  }
-
-  /**
-   * Saves Template settings on the "decorations" tab.
-   *
-   * @param $event
-   * @see ProcessTemplate::___executeSave()
-   */
-  public function hookSaveForm($event)
-  {
-    $label = isset($this->input->post->badge_label) ? $this->input->post->badge_label : null;
-    $color = isset($this->input->post->badge_color) ? $this->input->post->badge_color : null;
-    $icon = isset($this->input->post->page_icon) ? $this->input->post->page_icon : null;
-    $directions = isset($this->input->post->directions) ? $this->input->post->directions : null;
-
-    $template = $this->templates->get($this->input->post->id);
-
-    if ($template->directions != $directions || $template->badge_label != $label || $template->badge_color != $color || $template->page_icon != $icon) {
-      $this->message($this->_("Changed Template Decorations"));
+        // hook into page-editor - adds badges and icons:
+        $this->addHookAfter('ProcessPageEdit::buildForm', $this, 'hookPageEditForm');
     }
 
-    $template->badge_label = $label;
-    $template->badge_color = $color;
-    $template->page_icon = $icon;
-    $template->directions = $directions;
-  }
-
-  /**
-   * @param Template $template the Template for which to select an icon
-   * @return string|null icon URL, or null if no applicable icon exists
-   */
-  public function getPageIcon(Page $page)
-  {
     /**
-     * @var $template Template
+     * Builds the Module configuration form.
+     *
+     * @param array $data module configuration values
+     *
+     * @return InputfieldsWrapper|InputfieldWrapper
      */
+    static public function getModuleConfigInputfields(array $data)
+    {
+        /**
+         * @var $fields InputfieldWrapper
+         * @var $default_icon InputfieldText
+         * @var $show_template InputfieldCheckbox
+         */
 
-    $template = $page->template;
+        $modules = Wire::getFuel('modules');
 
-    if (isset($template->page_icon)) {
-      return $this->_getIconUrl() . $template->page_icon;
-    } else if (!empty($this->page_icons[$page->id])) {
-      return $this->_getIconUrl() . $this->page_icons[$page->id];
-    } else if (!empty($this->default_icon)) {
-      return $this->_getIconUrl() . $this->default_icon;
+        $fields = new InputfieldWrapper();
+
+        $default_icon = $modules->get('InputfieldSelect');
+        $default_icon->label = 'Default Icon';
+        $default_icon->description = 'Select a default icon (for templates/pages with no defined icon)';
+        $default_icon->notes = 'Try "Blank" for no icon, or "Page" for a simple, empty page icon.';
+        $default_icon->addOption('');
+        $default_icon->addOptions(self::_getIcons());
+        $default_icon->attr('name', 'default_icon');
+        $default_icon->attr('value', isset($data['default_icon']) ? $data['default_icon'] : '');
+        $fields->append($default_icon);
+
+        foreach (self::$special_pages as $key => $label) {
+            $special_icon = $modules->get('InputfieldSelect');
+            $special_icon->label = $label;
+            $special_icon->addOption('');
+            $special_icon->addOptions(self::_getIcons());
+            $special_icon->attr('name', "icon_{$key}");
+            $special_icon->attr('value', isset($data["icon_{$key}"]) ? $data["icon_{$key}"] : '');
+            $fields->append($special_icon);
+        }
+
+        $show_template = $modules->get('InputfieldCheckbox');
+        $show_template->attr('name', 'show_template');
+        $show_template->attr('value', '1');
+        if (@$data['show_template'] == '1') {
+            $show_template->attr('checked', 'checked');
+        }
+        $show_template->label = 'Show Template Name';
+        $show_template->description = 'Displays the name of the Template in the page title when editing a Page.';
+        $fields->append($show_template);
+
+        return $fields;
     }
-  }
 
-  /**
-   * Decorate the Page List with badges and icons.
-   *
-   * @param HookEvent $event
-   * @see ProcessPageListRender::___getPageLabel()
-   */
-  public function hookPageLabel(HookEvent $event)
-  {
     /**
-     * @var Page $page
-     * @var Template $template
+     * Decorate the Page editor form's "content" tab with Template-name and Directions.
+     *
+     * @param HookEvent $event
+     *
+     * @see ProcessPageEdit::___buildForm()
      */
+    public function hookPageEditForm(HookEvent $event)
+    {
+        /**
+         * @var $page Page
+         * @var $template Template
+         * @var $form InputfieldForm
+         * @var $content Inputfield
+         * @var $directions InputfieldMarkup
+         */
 
-    $page = $event->argumentsByName('page');
+        $modules = Wire::getFuel('modules');
 
-    $icon = $this->getPageIcon($page);
+        $module = $event->object;
 
-    if (!empty($icon)) {
-      $event->return = '<img class="TemplateDecorator-icon" src="'.$icon.'" />'.$event->return;
+        // invasive maneuvers to get the Page being edited:
+        $class = new ReflectionClass(get_class($module));
+        $prop = $class->getProperty('page');
+        $prop->setAccessible(true);
+        $page = $prop->getValue($module);
+
+        $template = $page->template;
+
+        $this->setFuel('processHeadline', $template->get('label|name') . ': ' . $page->get('title|name'));
+
+        if (isset($template->directions) && !empty($template->directions)) {
+            $directions = wire('modules')->get('InputfieldMarkup');
+            $directions->markupText = $template->directions;
+
+            $form = $event->return;
+            $content = $form->children->first();
+            $content->prepend($directions);
+        }
     }
 
-    $template = $page->template;
+    /**
+     * Adds the new "decorations" tab to the Template editor.
+     *
+     * @param HookEvent $event
+     *
+     * @see ProcessTemplate::___buildEditForm()
+     */
+    public function hookAddForm(HookEvent $event)
+    {
+        /**
+         * @var $form InputfieldForm
+         * @var $badge InputfieldMarkup
+         * @var $label InputfieldText
+         * @var $color InputfieldText
+         * @var $icons string[]
+         * @var $icon InputfieldSelect
+         * @var $directions InputfieldTextarea
+         */
 
-    if (isset($template->badge_color)) {
-      $color = $template->badge_color;
+        $form = $event->return;
 
-      if (isset($template->badge_label)) {
-        $label = $template->badge_label;
-      } else if (isset($template->label)) {
-        $label = $template->label;
-      } else {
-        $label = $template->name;
-      }
+        $template = $this->templates->get($event->arguments('template'));
 
-      $event->return .= '<span class="TemplateDecorator-badge" style="background:'.$color.'">'.$label.'</span>';
+        $decorations = new InputfieldWrapper();
+
+        $decorations->attr('title', $this->_x('Decorations', 'tab'));
+        $decorations->head = $this->_('Decorate Templates and Pages');
+        $decorations->attr('class', 'WireTab');
+
+        /*
+        $badge = $this->modules->get('InputfieldMarkup');
+        $badge->markupText = '<h2>' . htmlspecialchars($this->_('Badge')) . '</h2>'
+          . $this->_('Display a colorful badge in the Page List');
+        */
+
+        $label = $this->modules->get('InputfieldText');
+        $label->label = $this->_('Badge Label');
+        $label->attr('id+name', 'badge_label');
+        $label->attr('value', $template->badge_label);
+        $label->columnWidth = 50;
+
+        $color = $this->modules->get('InputfieldText');
+        $color->label = $this->_('Badge Color');
+        $color->attr('id+name', 'badge_color');
+        $color->attr('value', $template->badge_color);
+        $color->columnWidth = 50;
+
+        $directions = wire('modules')->get('InputfieldTinyMCE');
+        $directions->description = 'Enter directions for the person editing the Page.';
+        $directions->attr('id+name', 'directions');
+        $directions->attr('value', $template->directions);
+        $directions->attr('rows', 10);
+        $directions->label = $this->_('Directions');
+
+        $icons = self::_getIcons();
+        $icons_url = $this->_getIconUrl();
+        $icons_license = $this->config->paths->TemplateDecorator . 'icons/LICENSE.txt';
+
+        $icon = $this->modules->get('InputfieldSelect');
+        $icon->label = $this->_('Page Icon');
+        $icon->addOption('');
+        $icon->attr('id+name', 'page_icon');
+        $icon->attr('value', $template->page_icon);
+        $icon->addOptions($icons);
+
+        $icon->addHookAfter(
+            'render',
+            null,
+            function (HookEvent $event) use ($icons, $icons_url, $icons_license) {
+                $event->return .= '<div id="TemplateDecorator-icons">';
+
+                foreach ($icons as $icon => $name) {
+                    $event->return .= '<img title="' . htmlspecialchars(
+                        $name
+                    ) . '" src="' . $icons_url . $icon . '" data-icon="' . $icon . '" />';
+                }
+
+                $event->return .= '</div>';
+
+                if (file_exists($icons_license)) {
+                    $event->return .= file_get_contents($icons_license);
+                }
+            }
+        );
+
+        #$t->add($badge);
+        $decorations->add($label);
+        $decorations->add($color);
+        $decorations->add($directions);
+        $decorations->add($icon);
+
+        $form->add($decorations);
+
+        $this->config->scripts->add($this->config->urls->TemplateDecorator . "TemplateDecorator.js");
     }
-  }
 
-  /**
-   * Builds a list of available icon files.
-   *
-   * @return string[] list of icons, where $filename => $display_name
-   */
-  private static function _getIcons()
-  {
-    static $icons;
+    /**
+     * Saves Template settings on the "decorations" tab.
+     *
+     * @param $event
+     *
+     * @see ProcessTemplate::___executeSave()
+     */
+    public function hookSaveForm($event)
+    {
+        $label = isset($this->input->post->badge_label) ? $this->input->post->badge_label : null;
+        $color = isset($this->input->post->badge_color) ? $this->input->post->badge_color : null;
+        $icon = isset($this->input->post->page_icon) ? $this->input->post->page_icon : null;
+        $directions = isset($this->input->post->directions) ? $this->input->post->directions : null;
 
-    if (!isset($icons)) {
-      $icons = array();
-      foreach (glob(wire('config')->paths->TemplateDecorator.'icons/*.png') as $icon) {
-        $filename = basename($icon);
-        $name = ucwords(strtr(basename($filename,'.png'), '-_', '  '));
-        $icons[$filename] = $name;
-      }
+        $template = $this->templates->get($this->input->post->id);
+
+        if ($template->directions != $directions || $template->badge_label != $label || $template->badge_color != $color || $template->page_icon != $icon) {
+            $this->message($this->_("Changed Template Decorations"));
+        }
+
+        $template->badge_label = $label;
+        $template->badge_color = $color;
+        $template->page_icon = $icon;
+        $template->directions = $directions;
     }
 
-    return $icons;
-  }
+    /**
+     * @param Template $template the Template for which to select an icon
+     *
+     * @return string|null icon URL, or null if no applicable icon exists
+     */
+    public function getPageIcon(Page $page)
+    {
+        /**
+         * @var $template Template
+         */
 
-  /**
-   * @return string base URL for page icons
-   */
-  private function _getIconUrl()
-  {
-    return $this->config->urls->TemplateDecorator.'icons/';
-  }
+        $template = $page->template;
+
+        if (isset($template->page_icon)) {
+            return $this->_getIconUrl() . $template->page_icon;
+        } else {
+            if (!empty($this->page_icons[$page->id])) {
+                return $this->_getIconUrl() . $this->page_icons[$page->id];
+            } else {
+                if (!empty($this->default_icon)) {
+                    return $this->_getIconUrl() . $this->default_icon;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Decorate the Page List with badges and icons.
+     *
+     * @param HookEvent $event
+     *
+     * @see ProcessPageListRender::___getPageLabel()
+     */
+    public function hookPageLabel(HookEvent $event)
+    {
+        /**
+         * @var Page $page
+         * @var Template $template
+         */
+
+        $page = $event->argumentsByName('page');
+
+        $icon = $this->getPageIcon($page);
+
+        if (!empty($icon)) {
+            $event->return = '<img class="TemplateDecorator-icon" src="' . $icon . '" />' . $event->return;
+        }
+
+        $template = $page->template;
+
+        if (isset($template->badge_color)) {
+            $color = $template->badge_color;
+
+            if (isset($template->badge_label)) {
+                $label = $template->badge_label;
+            } else {
+                if (isset($template->label)) {
+                    $label = $template->label;
+                } else {
+                    $label = $template->name;
+                }
+            }
+
+            $event->return .= '<span class="TemplateDecorator-badge" style="background:' . $color . '">' . $label . '</span>';
+        }
+    }
+
+    /**
+     * Builds a list of available icon files.
+     *
+     * @return string[] list of icons, where $filename => $display_name
+     */
+    private static function _getIcons()
+    {
+        static $icons;
+
+        if (!isset($icons)) {
+            $icons = array();
+            foreach (glob(wire('config')->paths->TemplateDecorator . 'icons/*.png') as $icon) {
+                $filename = basename($icon);
+                $name = ucwords(strtr(basename($filename, '.png'), '-_', '  '));
+                $icons[$filename] = $name;
+            }
+        }
+
+        return $icons;
+    }
+
+    /**
+     * @return string base URL for page icons
+     */
+    private function _getIconUrl()
+    {
+        return $this->config->urls->TemplateDecorator . 'icons/';
+    }
 }
