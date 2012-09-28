@@ -31,6 +31,20 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
     }
 
     /**
+     * Apply default configuration.
+     */
+    public function ___install()
+    {
+        wire('modules')->saveModuleConfigData($this->className(), array(
+            'default_icon' => 'page.png',
+            'icon_adminRootPageID' => 'config.png',
+            'icon_trashPageID' => 'trash.png',
+            'icon_http404PageID' => 'bug.png',
+            'show_template' => true,
+        ));
+    }
+
+    /**
      * @var array map where special page ID => icon URL
      */
     private $page_icons = array();
