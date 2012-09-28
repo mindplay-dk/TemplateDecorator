@@ -1,0 +1,92 @@
+<?php
+
+/**
+ * Drop-down control for icon-selection.
+ */
+class InputfieldIconSelect extends InputfieldSelect
+{
+    public static function getModuleInfo()
+    {
+        return array(
+            'title' => __('IconSelect', __FILE__),
+            'summary' => __('Selection of an icon-file from a select pulldown', __FILE__),
+            'version' => 100,
+        );
+    }
+
+    /**
+     * Initialize icon choices.
+     */
+    public function init()
+    {
+        parent::init();
+
+        wire('modules')->get('JQueryCore');
+
+        $this->addOption('');
+        // ^ TODO workaround for // https://github.com/ryancramerdesign/ProcessWire/issues/128
+
+        $this->addOptions($this->getIcons());
+
+        $this->addHookAfter('render', $this, 'hookAfterRender');
+    }
+
+    /**
+     * Render icon list.
+     *
+     * @param HookEvent $event
+     */
+    public function hookAfterRender(HookEvent $event)
+    {
+        $icons = self::getIcons();
+        $icons_url = self::getIconUrl();
+        $icons_license = wire('config')->paths->InputfieldIconSelect . 'icons/LICENSE.txt';
+
+        $id = $this->attr('id');
+
+        $event->return .= '<div class="InputfieldIconSelect-icons">';
+
+        foreach ($icons as $icon => $name) {
+            $event->return .= '<img title="' . htmlspecialchars(
+                $name
+            ) . '" src="' . $icons_url . $icon . '" data-icon="' . $icon . '" />';
+        }
+
+        $event->return .= '</div>';
+
+        if (file_exists($icons_license)) {
+            $event->return .= file_get_contents($icons_license);
+        }
+
+        $event->return .= '<script> jQuery(function($) { InputfieldIconSelect.init($("#'.$id.'")); }); </script>';
+    }
+
+    /**
+     * Builds a list of available icon files.
+     *
+     * @return string[] list of icons, where $filename => $display_name
+     */
+    public static function getIcons()
+    {
+        static $icons;
+
+        if (!isset($icons)) {
+            $icons = array();
+            foreach (glob(wire('config')->paths->InputfieldIconSelect . 'icons/*.png') as $icon) {
+                $filename = basename($icon);
+                $name = ucwords(strtr(basename($filename, '.png'), '-_', '  '));
+                $icons[$filename] = $name;
+            }
+        }
+
+        return $icons;
+    }
+
+    /**
+     * @return string base URL for page icons
+     */
+    public static function getIconUrl()
+    {
+        return wire('config')->urls->InputfieldIconSelect . 'icons/';
+    }
+}

@@ -24,19 +24,6 @@
     text-decoration:none;
 }
 
-/* icon list: */
-
-#TemplateDecorator-icons {
-    width:600px;
-    overflow: hidden;
-}
-
-#TemplateDecorator-icons img {
-    cursor: pointer;
-    float: left;
-    margin:0px 24px 24px 0px;
-}
-
 /* template badge: */
 
 .TemplateDecorator-badge {
