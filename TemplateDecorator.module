@@ -178,11 +178,9 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
         $module = $event->object;
 
-        // invasive maneuvers to get the Page being edited:
-        $class = new ReflectionClass(get_class($module));
-        $prop = $class->getProperty('page');
-        $prop->setAccessible(true);
-        $page = $prop->getValue($module);
+        $form = $event->return;
+        
+        $page = $this->pages->get($form->children->get("name=id")->value);
 
         $template = $page->template;
 
@@ -192,7 +190,6 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
             $directions = wire('modules')->get('InputfieldMarkup');
             $directions->markupText = $template->directions;
 
-            $form = $event->return;
             $content = $form->children->first();
             $content->prepend($directions);
         }
