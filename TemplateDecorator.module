@@ -183,8 +183,10 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
         $page = $this->pages->get($form->children->get("name=id")->value);
 
         $template = $page->template;
-
-        $this->setFuel('processHeadline', $template->get('label|name') . ': ' . $page->get('title|name'));
+  
+        if ($this->show_template) {
+          $this->setFuel('processHeadline', $template->get('label|name') . ': ' . $page->get('title|name'));
+        }
 
         if (isset($template->directions) && !empty($template->directions)) {
             $directions = wire('modules')->get('InputfieldMarkup');
