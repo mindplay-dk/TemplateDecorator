@@ -345,8 +345,10 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
         $template = $page->template;
 
-        if (isset($template->badge_color)) {
-            $color = $template->badge_color;
+        if (isset($template->badge_color) || isset($template->badge_label)) {
+            $color = isset($template->badge_color)
+                ? $template->badge_color
+                : '#000000';
 
             if (isset($template->badge_label)) {
                 $label = $template->badge_label;
