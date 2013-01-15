@@ -320,18 +320,16 @@ class TemplateDecorator extends WireData implements Module, ConfigurableModule
 
         $template = $page->template;
 
-        if (isset($template->page_icon)) {
-            return $this->_getIconUrl() . $template->page_icon;
+        if (!empty($this->page_icons[$page->id])) {
+            return $this->_getIconUrl() . $this->page_icons[$page->id];
         } else {
-            if (!empty($this->page_icons[$page->id])) {
-                return $this->_getIconUrl() . $this->page_icons[$page->id];
-            } else {
-                if (!empty($this->default_icon)) {
-                    return $this->_getIconUrl() . $this->default_icon;
-                }
+            if (isset($template->page_icon)) {
+                return $this->_getIconUrl() . $template->page_icon;
+            } elseif (!empty($this->default_icon)) {
+                return $this->_getIconUrl() . $this->default_icon;
             }
         }
-
+        
         return null;
     }
 
