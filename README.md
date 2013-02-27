@@ -7,4 +7,4 @@ This plugin lets you decorate templates and pages with badges, icons, titles and
 
 Use the module configuration screen to enable/disable certain decoration features.
 
-To add a badge/icon, see the new BADGE tab in the Template Editor.
+To add a badge/icon, see the new "Decorations" tab in the Template Editor.
