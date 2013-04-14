@@ -48,10 +48,6 @@
 TemplateDecorator = {
     init: function($) {
         $('#badge_color').presetpicker();
-
-        $('#TemplateDecorator-icons').on('click', 'img', function() {
-            $('#page_icon').val($(this).attr('data-icon'));
-        });
     }
 };
 
